@@ -456,14 +456,14 @@ function renderStatus(){
   sb.innerHTML =
     `<span class="chip">After <b>GW${DB.gw_cur}</b></span>`+
     `<span class="chip">Next <b>GW${DB.gw_next}</b></span>`+
-    `<span class="chip ${LIVE?'live':''}" id="chip-data">${LIVE?'● live':'snapshot '+asof}</span>`+
-    `<button class="btn" id="btn-refresh" title="Pull live data">Refresh live</button>`+
+    `<span class="chip ${LIVE?'live':''}" id="chip-data">${LIVE?'● live · '+asof:'snapshot '+asof}</span>`+
+    `<button class="btn" id="btn-refresh" title="Pull latest data">Refresh</button>`+
     `<button class="btn" id="btn-cfg" title="Data source settings" aria-label="Data source settings">⚙</button>`;
   $('#btn-refresh').onclick = refreshLive;
   $('#btn-cfg').onclick = ()=>{const p=$('#proxypanel');p.classList.toggle('hide');$('#proxy-in').value=getProxy();};
   $('#foot-src').textContent = LIVE
-    ? 'Data: live from the FPL API this session.'
-    : `Data: snapshot taken ${asof} 2026 (after GW${DB.gw_cur}). Prices & form update when you self-host with live data — see notes.`;
+    ? `Data: auto-updated ${asof} (after GW${DB.gw_cur}).`
+    : `Data: snapshot ${asof} 2026 (after GW${DB.gw_cur}). Set up the GitHub Action to auto-update it — see notes.`;
 }
 
 /* ---------------- live data (via api/fpl proxy, or direct when local) ---------------- */
@@ -489,13 +489,26 @@ async function pullLive(){
   const [b,fx]=await Promise.all([fplGet('bootstrap-static'), fplGet('fixtures')]);
   return transformLive(b,fx);
 }
-/* silent probe on load — upgrades to live automatically if a source is reachable */
+/* primary live source: data/fpl.json committed by the repo's GitHub Action
+   (fetched from the FPL API on GitHub's servers, which aren't IP-blocked). */
+async function loadFreshData(){
+  try{
+    const r=await fetch('data/fpl.json',{cache:'no-store'});
+    if(!r.ok) return false;
+    const d=await r.json();
+    if(d&&Array.isArray(d.players)&&d.players.length){ DB=d; LIVE=true; rebuildAll(); renderStatus(); return true; }
+  }catch(e){}
+  return false;
+}
+/* silent probe on load — auto-updated file first, then proxy (usually blocked) */
 async function autoProbe(){
+  if(await loadFreshData()) return;
   try{ DB=await pullLive(); LIVE=true; rebuildAll(); renderStatus(); }catch(e){}
 }
 async function refreshLive(){
   const chip = $('#chip-data'); const btn = $('#btn-refresh');
   btn.disabled = true; chip.textContent = 'fetching…';
+  if(await loadFreshData()){ btn.disabled=false; return; }
   try{ DB=await pullLive(); LIVE=true; rebuildAll(); renderStatus(); }
   catch(e){
     btn.disabled = false; chip.textContent = 'snapshot (live blocked)'; chip.classList.remove('live');
