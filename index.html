@@ -434,38 +434,41 @@ function renderStatus(){
     : `Data: snapshot taken ${asof} 2026 (after GW${DB.gw_cur}). Prices & form update when you self-host with live data — see notes.`;
 }
 
-/* ---------------- live refresh (works when self-hosted / opened locally) ---------------- */
+/* ---------------- live data (via api/fpl proxy, or direct when local) ---------------- */
 function getProxy(){try{return localStorage.getItem('fpl_proxy')||'';}catch(e){return '';}}
 function setProxy(v){try{v?localStorage.setItem('fpl_proxy',v):localStorage.removeItem('fpl_proxy');}catch(e){}}
 function norm(b){return b.replace(/\/?$/,'/');}
-function apiBases(){
-  const b=[]; const p=getProxy();
-  if(p) b.push(norm(p));
-  b.push('/api/');                                   // same-origin proxy (co-hosted on Vercel)
-  b.push('https://fantasy.premierleague.com/api/');  // direct (works from a local file, sometimes)
-  return b;
+function proxyRoot(){ const p=getProxy(); return p?norm(p):'/api/'; }  // where api/fpl.js lives
+/* fetch one FPL endpoint (e.g. 'bootstrap-static', 'entry/123/event/4/picks')
+   via the proxy first, then the FPL API directly (works from a local file). */
+async function fplGet(endpoint){
+  const tries=[
+    proxyRoot()+'fpl?path='+encodeURIComponent(endpoint),
+    'https://fantasy.premierleague.com/api/'+endpoint+'/'
+  ];
+  let status=0;
+  for(const url of tries){
+    try{ const r=await fetch(url); if(!r.ok){status=r.status;continue;} return await r.json(); }
+    catch(e){ /* CSP / network — try next */ }
+  }
+  const err=new Error('fpl-fetch-failed'); err.status=status; throw err;
 }
-async function pull(base){
-  const [b,fx] = await Promise.all([
-    fetch(base+'bootstrap-static/').then(r=>{if(!r.ok)throw 0;return r.json();}),
-    fetch(base+'fixtures/').then(r=>{if(!r.ok)throw 0;return r.json();})
-  ]);
+async function pullLive(){
+  const [b,fx]=await Promise.all([fplGet('bootstrap-static'), fplGet('fixtures')]);
   return transformLive(b,fx);
 }
 /* silent probe on load — upgrades to live automatically if a source is reachable */
 async function autoProbe(){
-  for(const base of apiBases()){
-    try{ DB = await pull(base); LIVE = true; rebuildAll(); renderStatus(); return; }catch(e){}
-  }
+  try{ DB=await pullLive(); LIVE=true; rebuildAll(); renderStatus(); }catch(e){}
 }
 async function refreshLive(){
   const chip = $('#chip-data'); const btn = $('#btn-refresh');
   btn.disabled = true; chip.textContent = 'fetching…';
-  for(const base of apiBases()){
-    try{ DB = await pull(base); LIVE = true; rebuildAll(); renderStatus(); return; }catch(e){}
+  try{ DB=await pullLive(); LIVE=true; rebuildAll(); renderStatus(); }
+  catch(e){
+    btn.disabled = false; chip.textContent = 'snapshot (live blocked)'; chip.classList.remove('live');
+    alert("Couldn't reach live data.\n\n\u2022 On the published Claude page, external calls are always blocked \u2014 use your own hosted URL or open the file locally.\n\u2022 If you're self-hosted, check that  your-site/api/fpl?path=bootstrap-static  returns JSON.\n\nThe snapshot stays fully usable.");
   }
-  btn.disabled = false; chip.textContent = 'snapshot (live blocked)'; chip.classList.remove('live');
-  alert("Couldn't reach live data.\n\n\u2022 On the published Claude page, external calls are always blocked \u2014 download the file and host it, or open it locally.\n\u2022 Co-host the tool with the proxy on Vercel and it goes live automatically.\n\u2022 Or set your proxy URL with the \u2699 button.\n\nThe snapshot stays fully usable.");
 }
 function transformLive(b, fixtures){
   const ET={1:'GKP',2:'DEF',3:'MID',4:'FWD'};
@@ -733,29 +736,18 @@ async function analyseTeam(){
   try{localStorage.setItem('fpl_team',id);}catch(e){}
   out.innerHTML='<div class="empty">Fetching your squad…</div>';
 
-  let entry,picks,ok=false,proxyOk=false,badId=false;
-  for(const base of apiBases()){
-    try{
-      // 1) confirm this base is a real, working FPL proxy (not a 404 page)
-      const br=await fetch(base+'bootstrap-static/');
-      if(!br.ok) continue;
-      const b=await br.json();
-      if(!b||!Array.isArray(b.elements)) continue;
-      proxyOk=true;
-      // 2) fetch the manager entry
-      const er=await fetch(base+'entry/'+id+'/');
-      if(er.status===404){ badId=true; continue; }
-      if(!er.ok) continue;
-      entry=await er.json();
-      const gw=entry.current_event||(b.events.find(e=>e.is_current)||{}).id||DB.gw_cur;
-      const pr=await fetch(base+'entry/'+id+'/event/'+gw+'/picks/');
-      if(!pr.ok) continue;
-      picks=await pr.json();
-      ok=true; break;
-    }catch(e){ /* CSP / network — try next base */ }
-  }
-
-  if(ok){ renderTeam(entry,picks); return; }
+  let proxyOk=false,badId=false;
+  try{
+    const b=await fplGet('bootstrap-static');           // reach live data first
+    if(!b||!Array.isArray(b.elements)) throw new Error('bad');
+    proxyOk=true;
+    let entry;
+    try{ entry=await fplGet('entry/'+id); }
+    catch(e){ if(e.status===404) badId=true; throw e; }
+    const gw=entry.current_event||(b.events.find(e=>e.is_current)||{}).id||DB.gw_cur;
+    const picks=await fplGet('entry/'+id+'/event/'+gw+'/picks');
+    renderTeam(entry,picks); return;
+  }catch(e){ /* fall through to diagnostics */ }
 
   let msg;
   if(proxyOk && badId){
@@ -764,8 +756,8 @@ async function analyseTeam(){
     msg=`Live data is reachable, but couldn't load picks for team <b>${id}</b> this gameweek. Double-check the ID, or try again after the next deadline.`;
   } else {
     msg=`Couldn't reach a live data source.<br><br>`+
-        `<b>If you're on the Claude preview:</b> live fetch is always blocked here — open your own Vercel URL instead.<br>`+
-        `<b>If you're on your Vercel site:</b> the proxy isn't wired. Open <code>your-site/api/bootstrap-static</code> in a new tab — if that's a 404, your <code>[...path].js</code> is in the repo root instead of an <code>api/</code> folder. Move it into <code>api/</code> and redeploy.`;
+        `<b>If you're on the Claude preview:</b> live fetch is always blocked here — open your own hosted URL instead.<br>`+
+        `<b>If you're self-hosted:</b> open <code>your-site/api/fpl?path=bootstrap-static</code> in a new tab. JSON = working; a 404 or error means the <code>api/fpl.js</code> function isn't deployed yet.`;
   }
   out.innerHTML=`<div class="empty" style="text-align:left;max-width:640px;margin:0 auto">${msg}</div>`;
 }
