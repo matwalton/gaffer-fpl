@@ -283,7 +283,7 @@ footer{color:var(--mut2);font-size:12px;margin-top:26px;line-height:1.6;border-t
       <span class="sw"><span class="box" style="background:var(--f3)"></span>3</span>
       <span class="sw"><span class="box" style="background:var(--f4)"></span>4</span>
       <span class="sw"><span class="box" style="background:var(--f5)"></span>5 hardest</span>
-      <span style="margin-left:auto">UPPER = home · lower = away</span>
+      <span style="margin-left:auto">H = home · A = away</span>
     </div>
     <p class="note">FDR is the Premier League's official difficulty rating for each fixture. "Easiest run" sorts by the lowest total difficulty across the window — that's where you hunt for defenders (clean sheets) and set-and-forget picks.</p>
   </section>
@@ -523,7 +523,7 @@ function renderTicker(){
     const tds=r.cells.map(cs=>{
       if(!cs.length) return `<td class="fixcell"><div class="fdr blank"><span class="op">—</span></div></td>`;
       return `<td class="fixcell">`+cs.map(f=>{
-        const op=f.home?f.opp:f.opp.toLowerCase();
+        const op=f.opp;
         return `<div class="fdr ${fdrClass(f.diff)}" title="GW${f.gw}: ${f.home?'vs':'@'} ${f.opp} · FDR ${f.diff}"><span class="op">${op}</span><span class="ha">${f.home?'H':'A'}</span></div>`;
       }).join('')+`</td>`;
     }).join('');
@@ -634,7 +634,7 @@ function renderCompare(){
     const fx=(DB.teamfix[p.t]||[]).filter(f=>f.gw<(DB.gw_next||1)+cmpHorizon);
     const mini=fx.map(f=>{
       const cls=f.diff>=1&&f.diff<=5?'fdr d'+f.diff:'fdr blank';
-      const op=f.home?f.opp:f.opp.toLowerCase();
+      const op=(f.home?'':'@')+f.opp;
       return `<div class="mini ${cls}" title="GW${f.gw} ${f.home?'vs':'@'} ${f.opp} (FDR ${f.diff})"><span>${op}</span></div>`;
     }).join('')||'<span class="dim" style="font-size:12px">No fixtures in window</span>';
     const metrics=CMP_METRICS.map(m=>{
@@ -648,7 +648,7 @@ function renderCompare(){
       <h3>${p.n}</h3>
       <div class="ct"><span class="badge pos-${p.pos}">${p.pos}</span> ${DB.teams[p.t].name} · £${p.c.toFixed(1)}m</div>
       ${metrics}
-      <div class="ct" style="margin:14px 0 0">Next ${cmpHorizon} — UPPER=home</div>
+      <div class="ct" style="margin:14px 0 0">Next ${cmpHorizon} — @ = away</div>
       <div class="fixrow">${mini}</div>
     </div>`;
   }).join('');
@@ -686,7 +686,7 @@ function nextFixStrip(p,n){
   if(!fx.length) return '<span class="dim" style="font-size:11px">—</span>';
   return '<div class="fixrow" style="margin:0">'+fx.map(f=>{
     const cls=f.diff>=1&&f.diff<=5?'fdr d'+f.diff:'fdr blank';
-    const op=f.home?f.opp:f.opp.toLowerCase();
+    const op=(f.home?'':'@')+f.opp;
     return `<div class="mini ${cls}" title="GW${f.gw} ${f.home?'vs':'@'} ${f.opp} (FDR ${f.diff})"><span>${op}</span></div>`;
   }).join('')+'</div>';
 }
@@ -864,7 +864,7 @@ const GLOSSARY={
   sel:{t:'Selected by (%)',d:'Share of managers who own the player. High = template/safe; low = differential/rank-gainer.'},
   min:{t:'Minutes',d:'Minutes played this season. The fastest check on who genuinely starts.'},
   dc:{t:'Defensive contributions (DC)',d:'Tackles, blocks, interceptions and recoveries — now a scoring category, which is why cheap defensive mids matter.'},
-  fdr:{t:'Fixture difficulty (FDR)',d:'The Premier League’s 1–5 rating per match: 1 easiest (green), 5 hardest (red). UPPERCASE opponent = home game, lowercase = away.'},
+  fdr:{t:'Fixture difficulty (FDR)',d:'The Premier League’s 1–5 rating per match: 1 easiest (green), 5 hardest (red). H = home, A = away; in the compact fixture strips an @ before a code means away.'},
   gw:{t:'Gameweek',d:'One round of Premier League fixtures.'},
   cap:{t:'Next-GW projection',d:'Projected points for the next single gameweek — what the captain call is based on (the captain scores double).'},
 };
