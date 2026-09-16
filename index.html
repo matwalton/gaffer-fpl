@@ -732,17 +732,42 @@ async function analyseTeam(){
   if(!id){out.innerHTML='<div class="empty">Enter your numeric team ID first.</div>';return;}
   try{localStorage.setItem('fpl_team',id);}catch(e){}
   out.innerHTML='<div class="empty">Fetching your squad…</div>';
-  let entry,picks,ok=false;
+
+  let entry,picks,ok=false,proxyOk=false,badId=false;
   for(const base of apiBases()){
     try{
-      entry=await fetch(base+'entry/'+id+'/').then(r=>{if(!r.ok)throw 0;return r.json();});
-      const gw=entry.current_event||DB.gw_cur;
-      picks=await fetch(base+'entry/'+id+'/event/'+gw+'/picks/').then(r=>{if(!r.ok)throw 0;return r.json();});
-      ok=true;break;
-    }catch(e){}
+      // 1) confirm this base is a real, working FPL proxy (not a 404 page)
+      const br=await fetch(base+'bootstrap-static/');
+      if(!br.ok) continue;
+      const b=await br.json();
+      if(!b||!Array.isArray(b.elements)) continue;
+      proxyOk=true;
+      // 2) fetch the manager entry
+      const er=await fetch(base+'entry/'+id+'/');
+      if(er.status===404){ badId=true; continue; }
+      if(!er.ok) continue;
+      entry=await er.json();
+      const gw=entry.current_event||(b.events.find(e=>e.is_current)||{}).id||DB.gw_cur;
+      const pr=await fetch(base+'entry/'+id+'/event/'+gw+'/picks/');
+      if(!pr.ok) continue;
+      picks=await pr.json();
+      ok=true; break;
+    }catch(e){ /* CSP / network — try next base */ }
   }
-  if(!ok){out.innerHTML='<div class="empty">Couldn\'t fetch your team. Live data is blocked on the published Claude page — run the self-hosted or local version (or set a proxy with ⚙). Also double-check the team ID.</div>';return;}
-  renderTeam(entry,picks);
+
+  if(ok){ renderTeam(entry,picks); return; }
+
+  let msg;
+  if(proxyOk && badId){
+    msg=`Reached live data fine — but no team found for ID <b>${id}</b>. Check the number: open <b>Points</b> on the FPL site and read it from the URL <code>/entry/<b>1234567</b>/</code>.`;
+  } else if(proxyOk){
+    msg=`Live data is reachable, but couldn't load picks for team <b>${id}</b> this gameweek. Double-check the ID, or try again after the next deadline.`;
+  } else {
+    msg=`Couldn't reach a live data source.<br><br>`+
+        `<b>If you're on the Claude preview:</b> live fetch is always blocked here — open your own Vercel URL instead.<br>`+
+        `<b>If you're on your Vercel site:</b> the proxy isn't wired. Open <code>your-site/api/bootstrap-static</code> in a new tab — if that's a 404, your <code>[...path].js</code> is in the repo root instead of an <code>api/</code> folder. Move it into <code>api/</code> and redeploy.`;
+  }
+  out.innerHTML=`<div class="empty" style="text-align:left;max-width:640px;margin:0 auto">${msg}</div>`;
 }
 
 function renderTeam(entry,picks){
