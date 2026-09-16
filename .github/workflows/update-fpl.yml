@@ -1,4 +1,3 @@
-
 name: Update FPL data
 
 # Runs on GitHub's servers (not IP-blocked by FPL), fetches the latest data,
@@ -42,6 +41,9 @@ jobs:
               teamfix[ta].append({'gw': ev, 'opp': teams[th]['n'], 'oid': th, 'home': 0, 'diff': f['team_a_difficulty']})
           for tid in teamfix: teamfix[tid].sort(key=lambda x: x['gw'])
           num = lambda x: (round(float(x), 2) if x not in (None, '') else 0.0)
+          def spflag(e):
+              orders = [e.get('corners_and_indirect_freekicks_order'), e.get('direct_freekicks_order')]
+              return 1 if any(o in (1, 2) for o in orders if o is not None) else 0
           players = [{
               'id': e['id'], 'n': e['web_name'], 't': e['team'], 'pos': et[e['element_type']],
               'c': e['now_cost'] / 10, 'tp': e['total_points'], 'form': num(e['form']),
@@ -50,7 +52,10 @@ jobs:
               'xgi': num(e['expected_goal_involvements']), 'xgc': num(e['expected_goals_conceded']),
               'ict': num(e['ict_index']), 'g': e['goals_scored'], 'a': e['assists'], 'cs': e['clean_sheets'],
               'bp': e['bonus'], 'dc': e.get('defensive_contribution', 0), 'st': e['status'],
-              'cop': e['chance_of_playing_next_round'], 'news': (e['news'] or '')[:140], 'starts': e.get('starts', 0)
+              'cop': e['chance_of_playing_next_round'], 'news': (e['news'] or '')[:140], 'starts': e.get('starts', 0),
+              'pc': e.get('cost_change_event', 0) / 10, 'pcs': e.get('cost_change_start', 0) / 10,
+              'tin': e.get('transfers_in_event', 0), 'tout': e.get('transfers_out_event', 0),
+              'pen': 1 if e.get('penalties_order') == 1 else 0, 'sp': spflag(e)
           } for e in boot['elements'] if e['team'] in teams]
           data = {'gw_cur': cur, 'gw_next': nxt, 'asof': datetime.date.today().isoformat(),
                   'teams': teams, 'teamfix': teamfix, 'players': players}
