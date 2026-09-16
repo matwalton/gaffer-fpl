@@ -348,10 +348,13 @@ footer{color:var(--mut2);font-size:12px;margin-top:26px;line-height:1.6;border-t
   <!-- ============ MY TEAM ============ -->
   <section id="view-team" role="tabpanel" aria-labelledby="tab-team" hidden>
     <div class="panel">
-      <div class="addrow">
-        <div class="field" style="flex:1 1 210px">
-          <label for="tm-id">Your FPL team ID</label>
-          <input type="text" id="tm-id" inputmode="numeric" placeholder="e.g. 1234567" autocomplete="off">
+      <div class="controls" style="margin-bottom:12px">
+        <div class="field">
+          <label>Mode</label>
+          <div class="seg" id="tm-mode" role="group">
+            <button data-v="manual" aria-pressed="true">Build squad</button>
+            <button data-v="id" aria-pressed="false">By team ID</button>
+          </div>
         </div>
         <div class="field">
           <label for="tm-horizon">Horizon (GWs)</label>
@@ -361,9 +364,38 @@ footer{color:var(--mut2);font-size:12px;margin-top:26px;line-height:1.6;border-t
           <label for="tm-ft">Free transfers</label>
           <select id="tm-ft"><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select>
         </div>
-        <button class="btn pri" id="tm-go">Analyse</button>
+        <div class="field">
+          <label for="tm-bank">Bank £m</label>
+          <input type="text" id="tm-bank" inputmode="decimal" value="0.0" style="width:84px">
+        </div>
       </div>
-      <p class="note">Your ID is the number in your FPL URL: open <b>Points</b> and read <code>/entry/<b>1234567</b>/</code>. This needs live data — run the self-hosted or local version (the published page can't fetch your team). Selling prices aren't public, so transfer budgets use current prices as a close proxy.</p>
+
+      <!-- manual builder -->
+      <div id="tm-manual">
+        <div class="addrow">
+          <div class="field results" style="flex:1 1 260px">
+            <label for="ms-search">Add player</label>
+            <input type="search" id="ms-search" placeholder="Type a name…" autocomplete="off">
+            <div class="dropdown hide" id="ms-dd"></div>
+          </div>
+          <button class="btn" id="ms-clear">Clear all</button>
+          <button class="btn pri" id="ms-go" disabled>Analyse squad</button>
+        </div>
+        <p class="note">Build your XV: <b>2 GKP, 5 DEF, 5 MID, 3 FWD</b>. No FPL login needed — this runs entirely on your picks, so it always works. Set your Bank above; selling prices aren't public, so transfer budgets use current prices.</p>
+        <div id="ms-picks"></div>
+      </div>
+
+      <!-- by team id -->
+      <div id="tm-idmode" class="hide">
+        <div class="addrow">
+          <div class="field" style="flex:1 1 210px">
+            <label for="tm-id">Your FPL team ID</label>
+            <input type="text" id="tm-id" inputmode="numeric" placeholder="e.g. 1234567" autocomplete="off">
+          </div>
+          <button class="btn pri" id="tm-go">Analyse</button>
+        </div>
+        <p class="note">ID = the number in your FPL URL under <b>Points</b>: <code>/entry/<b>1234567</b>/</code>. Heads-up: FPL now blocks automated team fetches from servers, so this often fails — <b>Build squad</b> is the reliable route.</p>
+      </div>
     </div>
     <div id="tm-out"></div>
   </section>
@@ -681,6 +713,146 @@ $('#tm-horizon').oninput=e=>{tmHorizon=+e.target.value;$('#tm-horizon-v').textCo
 try{const s=localStorage.getItem('fpl_team'); if(s)$('#tm-id').value=s;}catch(e){}
 $('#tm-go').onclick=analyseTeam;
 $('#tm-id').addEventListener('keydown',e=>{if(e.key==='Enter')analyseTeam();});
+
+/* mode toggle: build vs by-id */
+$$('#tm-mode button').forEach(b=>b.onclick=()=>{
+  $$('#tm-mode button').forEach(x=>x.setAttribute('aria-pressed',x===b));
+  const manual=b.dataset.v==='manual';
+  $('#tm-manual').classList.toggle('hide',!manual);
+  $('#tm-idmode').classList.toggle('hide',manual);
+  $('#tm-out').innerHTML='';
+});
+
+/* manual squad builder */
+const MS_REQ={GKP:2,DEF:5,MID:5,FWD:3};
+let msIds=[];
+try{const s=localStorage.getItem('fpl_squad'); if(s)msIds=JSON.parse(s)||[];}catch(e){}
+function msSave(){try{localStorage.setItem('fpl_squad',JSON.stringify(msIds));}catch(e){}}
+function msCounts(){const c={GKP:0,DEF:0,MID:0,FWD:0};msIds.forEach(id=>{const p=DB.players.find(x=>x.id===id);if(p)c[p.pos]++;});return c;}
+function msValid(){const c=msCounts();return Object.keys(MS_REQ).every(k=>c[k]===MS_REQ[k]);}
+function renderMsPicks(){
+  const wrap=$('#ms-picks'); const c=msCounts();
+  const status=['GKP','DEF','MID','FWD'].map(k=>{
+    const ok=c[k]===MS_REQ[k]; return `<span class="chip" style="${ok?'color:var(--acc);border-color:#215':''}">${k} ${c[k]}/${MS_REQ[k]}</span>`;
+  }).join('');
+  const order={GKP:0,DEF:1,MID:2,FWD:3};
+  const picks=msIds.map(id=>DB.players.find(p=>p.id===id)).filter(Boolean)
+    .sort((a,b)=>order[a.pos]-order[b.pos]||b.tp-a.tp);
+  const list=picks.map(p=>{
+    const fl=p.st==='a'?'':`<span class="flag ${p.st==='d'?'d':'o'}" title="${(p.news||'Doubt').replace(/"/g,'')}"></span>`;
+    return `<div class="rec"><span class="badge pos-${p.pos}">${p.pos}</span>
+      <span class="who">${p.n}</span>${fl}<span class="pmeta">${teamName(p.t)} · £${p.c.toFixed(1)}</span>
+      <button class="rm" data-id="${p.id}" title="Remove" style="margin-left:auto;position:static">×</button></div>`;
+  }).join('');
+  wrap.innerHTML=`<div class="tm-sum">${status}<span class="chip">Total <b>${msIds.length}/15</b></span></div>${list}`;
+  wrap.querySelectorAll('.rm').forEach(b=>b.onclick=()=>{msIds=msIds.filter(i=>i!==+b.dataset.id);msSave();renderMsPicks();});
+  $('#ms-go').disabled=!msValid();
+}
+function msSearch(){
+  const q=$('#ms-search').value.trim().toLowerCase(), dd=$('#ms-dd');
+  if(!q){dd.classList.add('hide');return;}
+  const c=msCounts();
+  const res=DB.players.filter(p=>p.n.toLowerCase().includes(q)&&!msIds.includes(p.id))
+    .sort((a,b)=>b.tp-a.tp).slice(0,8);
+  if(!res.length){dd.classList.add('hide');return;}
+  dd.innerHTML=res.map(p=>{
+    const full=c[p.pos]>=MS_REQ[p.pos];
+    return `<button data-id="${p.id}" ${full?'disabled style="opacity:.4"':''}><span>${p.n} <span class="dd-meta">${p.pos} · ${teamName(p.t)}</span></span><span class="dd-meta">£${p.c.toFixed(1)} · ${p.tp}pt${full?' · full':''}</span></button>`;
+  }).join('');
+  dd.classList.remove('hide');
+  dd.querySelectorAll('button:not([disabled])').forEach(b=>b.onclick=()=>{
+    if(msIds.length<15&&!msIds.includes(+b.dataset.id)) msIds.push(+b.dataset.id);
+    $('#ms-search').value='';dd.classList.add('hide');msSave();renderMsPicks();
+  });
+}
+$('#ms-search').addEventListener('input',msSearch);
+document.addEventListener('click',e=>{if(!e.target.closest('#tm-manual .results'))$('#ms-dd').classList.add('hide');});
+$('#ms-clear').onclick=()=>{msIds=[];msSave();renderMsPicks();$('#tm-out').innerHTML='';};
+$('#ms-go').onclick=()=>{
+  if(!msValid())return;
+  const squad=msIds.map(id=>DB.players.find(p=>p.id===id)).filter(Boolean)
+    .map(p=>Object.assign({},p,{_p:projH(p),_p1:projNext(p)}));
+  const bank=Math.max(0,parseFloat($('#tm-bank').value)||0);
+  renderManual(squad,bank,+$('#tm-ft').value);
+};
+renderMsPicks();
+
+function renderManual(squad,bank,ft){
+  const out=$('#tm-out');
+  const best=bestXI(squad);
+  if(!best){out.innerHTML='<div class="empty">That mix can\'t make a legal XI — check your 2/5/5/3 split.</div>';return;}
+  const xi=best.ids;
+  const capBest=squad.filter(p=>xi.has(p.id)).sort((a,b)=>b._p1-a._p1)[0];
+  const {inj,up}=transferIdeas(squad,bank);
+  const tv=squad.reduce((s,p)=>s+p.c,0);
+
+  const V=[];
+  const hurt=squad.filter(p=>p.st!=='a');
+  hurt.forEach(p=>{
+    const cls=p.st==='d'?'warn':'bad';
+    const lbl=p.st==='d'?'Doubtful':(p.st==='s'?'Suspended':(p.st==='u'?'Unavailable':'Injured'));
+    V.push(`<li class="${cls}"><b>${p.n}</b> — ${lbl}${p.news?': '+p.news:''}. ${xi.has(p.id)?'In your projected XI':'On your projected bench'}.</li>`);
+  });
+  V.push(`<li><b>Captain:</b> <b>${capBest.n}</b> is your highest projected pick next GW (${capBest._p1}). Give him the armband.</li>`);
+  V.push(`<li><b>Best XI (${best.formation}):</b> projects <b>${best.tot.toFixed(1)}</b> pts over ${tmHorizon} GWs; the four outside it are your bench.</li>`);
+  if(!hurt.length) V.push(`<li><b>Availability:</b> full squad fit — no injuries or suspensions flagged.</li>`);
+
+  const rowsHTML=(arr)=>arr.map(p=>{
+    const fl=p.st==='a'?'':`<span class="flag ${p.st==='d'?'d':'o'}" title="${(p.news||'Doubt').replace(/"/g,'')}"></span>`;
+    const cv=(p.id===capBest.id)?'<span class="cvc">C</span>':'';
+    return `<tr>
+      <td class="l"><span class="pname">${p.n}</span>${cv}${fl}<div class="pmeta">${teamName(p.t)}</div></td>
+      <td><span class="badge pos-${p.pos}">${p.pos}</span></td>
+      <td class="num-strong">${p.c.toFixed(1)}</td>
+      <td class="fixcell">${nextFixStrip(p,tmHorizon)}</td>
+      <td class="acc">${p._p.toFixed(1)}</td>
+      <td>${p._p1.toFixed(1)}</td>
+    </tr>`;
+  }).join('');
+  const ord={GKP:0,DEF:1,MID:2,FWD:3};
+  const inXI=squad.filter(p=>xi.has(p.id)).sort((a,b)=>ord[a.pos]-ord[b.pos]||b._p-a._p);
+  const onBench=squad.filter(p=>!xi.has(p.id)).sort((a,b)=>ord[a.pos]-ord[b.pos]||b._p-a._p);
+
+  const recPick=[...inj, ...up.filter(u=>!inj.some(i=>i.out.id===u.out.id))].slice(0,Math.max(ft,3));
+  const recsHTML=recPick.length? recPick.map(r=>{
+    const tag=r.injured?'<span class="tag2">FIX</span>':'';
+    const g=r.gain>0?`+${r.gain}`:`${r.gain}`;
+    return `<div class="rec">${tag}
+      <span class="who">OUT ${r.out.n}</span> <span class="pmeta">${teamName(r.out.t)} £${r.out.c.toFixed(1)} · ${projH(r.out)}proj</span>
+      <span class="arrow">→</span>
+      <span class="who">IN ${r.inp.n}</span> <span class="pmeta">${teamName(r.inp.t)} £${r.inp.c.toFixed(1)} · ${projH(r.inp)}proj</span>
+      <span class="gain ${r.gain>0?'pos':'neg'}">${g} pts / ${tmHorizon}GW</span>
+    </div>`;
+  }).join('') : '<div class="empty">No clear upgrades within budget right now — hold your transfer.</div>';
+  const hitNote = up.length && up[0].gain>0
+    ? `<p class="note">Each move beyond your ${ft} free transfer${ft>1?'s':''} costs −4. Over ${tmHorizon} GWs a move only pays off if its gain clears 4 — the top one ${up[0].gain>4?'does':'is marginal, so weigh it against a hit'}.</p>` : '';
+
+  out.innerHTML=`
+    <div class="tm-sum">
+      <span class="chip">Squad value <b>£${tv.toFixed(1)}m</b></span>
+      <span class="chip">Bank <b>£${bank.toFixed(1)}m</b></span>
+      <span class="chip">Free transfers <b>${ft}</b></span>
+      <span class="chip">Best shape <b>${best.formation}</b></span>
+    </div>
+    <div class="h2">The verdict</div>
+    <ul class="verdict">${V.join('')}</ul>
+    <div class="h2">Suggested transfers</div>
+    ${recsHTML}
+    ${hitNote}
+    <div class="h2">Your squad · proj over next ${tmHorizon} GWs</div>
+    <div class="tablewrap"><table>
+      <thead><tr><th class="l">Player</th><th>Pos${glMark('pos')}</th><th>£${glMark('price')}</th><th class="l">Next ${tmHorizon}${glMark('fdr')}</th><th>Proj${glMark('proj')}</th><th>GW${DB.gw_next}${glMark('cap')}</th></tr></thead>
+      <tbody>
+        <tr class="starter-sep"><td colspan="6">PROJECTED XI · C = captain pick</td></tr>
+        ${rowsHTML(inXI)}
+        <tr class="starter-sep"><td colspan="6">BENCH</td></tr>
+        ${rowsHTML(onBench)}
+      </tbody>
+    </table></div>
+    <p class="note">Proj = points over the next ${tmHorizon} gameweeks (fixture- and availability-adjusted). GW${DB.gw_next} = next single gameweek, used for the captain call. Transfer budget = bank + the current price of the player sold.</p>
+  `;
+}
+
 
 function projH(p){return +projection(p,tmHorizon).total.toFixed(1);}
 function projNext(p){return +projection(p,1).total.toFixed(1);}
