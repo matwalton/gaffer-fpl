@@ -169,6 +169,18 @@ td.fixcell{padding:4px 5px}
 .dd-meta{color:var(--mut);font-size:12.5px}
 
 .empty{color:var(--mut);text-align:center;padding:38px 16px;font-size:14.5px}
+/* stat tooltips */
+.glh{display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;margin-left:4px;
+  border:1px solid var(--line2);border-radius:50%;font-size:9px;font-weight:700;font-style:normal;
+  color:var(--mut);cursor:help;vertical-align:middle;line-height:1;background:var(--bg)}
+.glh:hover,.glh:focus-visible{color:var(--acc);border-color:var(--acc);outline:none}
+.glspan{text-decoration:underline dotted var(--mut2);text-underline-offset:3px;cursor:help}
+#gltip{position:fixed;z-index:100;max-width:min(300px,86vw);background:var(--bg2);border:1px solid var(--line2);
+  border-radius:10px;padding:11px 13px;box-shadow:0 14px 36px #000a;font-size:13px;line-height:1.5;color:var(--mut);
+  pointer-events:none;opacity:0;transform:translateY(4px);transition:opacity .12s,transform .12s}
+#gltip.show{opacity:1;transform:translateY(0)}
+#gltip b{color:var(--ink);display:block;font-size:13.5px;margin-bottom:3px}
+@media (prefers-reduced-motion:reduce){#gltip{transition:none}}
 /* my team */
 .tm-sum{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0}
 .h2{font-family:"Archivo Expanded",sans-serif;font-weight:700;font-size:16px;margin:22px 0 8px}
@@ -243,7 +255,6 @@ footer{color:var(--mut2);font-size:12px;margin-top:26px;line-height:1.6;border-t
     <button class="tab" role="tab" id="tab-explorer" aria-selected="false" aria-controls="view-explorer">Player Explorer</button>
     <button class="tab" role="tab" id="tab-compare" aria-selected="false" aria-controls="view-compare">Compare</button>
     <button class="tab" role="tab" id="tab-team" aria-selected="false" aria-controls="view-team">My Team</button>
-    <button class="tab" role="tab" id="tab-glossary" aria-selected="false" aria-controls="view-glossary">Glossary</button>
   </div>
 
   <!-- ============ TICKER ============ -->
@@ -355,58 +366,6 @@ footer{color:var(--mut2);font-size:12px;margin-top:26px;line-height:1.6;border-t
       <p class="note">Your ID is the number in your FPL URL: open <b>Points</b> and read <code>/entry/<b>1234567</b>/</code>. This needs live data — run the self-hosted or local version (the published page can't fetch your team). Selling prices aren't public, so transfer budgets use current prices as a close proxy.</p>
     </div>
     <div id="tm-out"></div>
-  </section>
-
-  <!-- ============ GLOSSARY ============ -->
-  <section id="view-glossary" role="tabpanel" aria-labelledby="tab-glossary" hidden class="glossary">
-    <div class="grp">
-      <div class="h2">Player stats — Explorer &amp; Compare</div>
-      <dl>
-        <dt>Pts</dt><dd>Total FPL points scored this season.</dd>
-        <dt>Form</dt><dd>Average points per match over roughly the last 30 days — the recent hot-or-cold read. Weighted heavily in the projection because recent minutes and role matter more than September.</dd>
-        <dt>PPG</dt><dd>Points per game across the whole season so far. Steadier than form, less reactive.</dd>
-        <dt>Proj</dt><dd>Gaffer's projected points over your chosen horizon. Model: a blend of form and PPG, adjusted for each fixture's difficulty, home/away, and whether the player is fit and starting. An estimate to rank options — not gospel.</dd>
-        <dt>Val</dt><dd>Value = total points per £1m of price. Higher means more return per pound — how you find cheap enablers and avoid dead money.</dd>
-        <dt>£</dt><dd>Current price in millions. Rises and falls with transfer activity across the game.</dd>
-        <dt>xG <span class="tag">expected goals</span></dt><dd>The quality of chances a player got, expressed in goals. 0.5 xG is one decent chance. If goals lag xG, returns may be coming; if goals run way ahead, a cold spell may follow.</dd>
-        <dt>xA <span class="tag">expected assists</span></dt><dd>Same idea for the passes that create shots — how threatening a player's chance-creation has been.</dd>
-        <dt>xGI <span class="tag">expected goal involvements</span></dt><dd>xG + xA. One number for total attacking threat — the first thing to sort attackers by.</dd>
-        <dt>xGC <span class="tag">expected goals conceded</span></dt><dd>Chances a player's team has allowed while they're on the pitch. Lower = better clean-sheet odds, so it's the key defensive-asset metric.</dd>
-        <dt>ICT</dt><dd>Influence, Creativity, Threat index — FPL's combined involvement score. A quick catch-all for "how much is this player actually doing?"</dd>
-        <dt>Sel%</dt><dd>Selected by — the share of managers who own the player. High is template (safe, won't gain you rank); low is a differential (risk, but upside if they haul).</dd>
-        <dt>Mins</dt><dd>Minutes played this season. The fastest sanity check on whether someone genuinely starts.</dd>
-        <dt>DC <span class="tag">defensive contributions</span></dt><dd>Tackles, blocks, interceptions and recoveries — a scoring category that rewards defenders and midfielders for defensive work, not just clean sheets and attacking returns.</dd>
-        <dt>BP / Bonus</dt><dd>Bonus points: 1–3 extra awarded to the best performers in each match.</dd>
-        <dt>CS</dt><dd>Clean sheets kept.</dd>
-        <dt>Starts</dt><dd>Games started, as opposed to coming off the bench.</dd>
-      </dl>
-    </div>
-    <div class="grp">
-      <div class="h2">Fixtures &amp; the ticker</div>
-      <dl>
-        <dt>FDR <span class="tag">fixture difficulty rating</span></dt><dd>The Premier League's own 1-to-5 rating for each match: 1 is the easiest, 5 the hardest. Green cells are soft fixtures, red are brutal. This is what the whole ticker is colour-coded on.</dd>
-        <dt>Avg FDR</dt><dd>The average difficulty across your window. Sort by it to find the softest runs — where you park defenders for clean sheets and set-and-forget picks.</dd>
-        <dt>H / A</dt><dd>Home or Away. In the ticker, an UPPERCASE opponent is a home game, lowercase is away.</dd>
-        <dt>GW</dt><dd>Gameweek — one round of Premier League fixtures.</dd>
-      </dl>
-    </div>
-    <div class="grp">
-      <div class="h2">Positions</div>
-      <dl>
-        <dt>GKP · DEF · MID · FWD</dt><dd>Goalkeeper, Defender, Midfielder, Forward. A valid XI is 1 GKP, 3–5 DEF, 2–5 MID, 1–3 FWD.</dd>
-      </dl>
-    </div>
-    <div class="grp">
-      <div class="h2">FPL basics — My Team</div>
-      <dl>
-        <dt>Team ID</dt><dd>The number identifying your side, found in your FPL URL under Points: <code>/entry/1234567/</code>.</dd>
-        <dt>Bank</dt><dd>Money you haven't spent, sitting ready for transfers.</dd>
-        <dt>Free transfers</dt><dd>Transfers you can make with no points penalty. You bank up to five.</dd>
-        <dt>Hit</dt><dd>The −4 point penalty for each transfer beyond your free ones. A move needs to beat that −4 over the horizon to be worth it.</dd>
-        <dt>Captain (C) / Vice (V)</dt><dd>Your captain scores double. The vice takes over automatically if the captain doesn't play.</dd>
-        <dt>Horizon</dt><dd>How many upcoming gameweeks the projection and team analysis look ahead. Short horizon = this-week thinking; long = planning transfers in advance.</dd>
-      </dl>
-    </div>
   </section>
 
   <footer>
@@ -533,7 +492,7 @@ function transformLive(b, fixtures){
 }
 
 /* ---------------- tabs ---------------- */
-const views={ticker:'#view-ticker',explorer:'#view-explorer',compare:'#view-compare',team:'#view-team',glossary:'#view-glossary'};
+const views={ticker:'#view-ticker',explorer:'#view-explorer',compare:'#view-compare',team:'#view-team'};
 $$('.tab').forEach(t=>t.onclick=()=>{
   const key=t.id.replace('tab-','');
   $$('.tab').forEach(x=>x.setAttribute('aria-selected', x===t));
@@ -559,7 +518,7 @@ function renderTicker(){
   else rows.sort((a,b)=>a.name.localeCompare(b.name));
 
   const thead=$('#tk-table thead'), tbody=$('#tk-table tbody');
-  thead.innerHTML='<tr><th class="l">Team</th>'+gws.map(g=>`<th>GW${g}</th>`).join('')+'<th>Avg FDR</th></tr>';
+  thead.innerHTML='<tr><th class="l">Team</th>'+gws.map(g=>`<th>GW${g}</th>`).join('')+`<th>Avg FDR${glMark('fdr')}</th></tr>`;
   tbody.innerHTML=rows.map(r=>{
     const tds=r.cells.map(cs=>{
       if(!cs.length) return `<td class="fixcell"><div class="fdr blank"><span class="op">—</span></div></td>`;
@@ -580,17 +539,17 @@ $$('#tk-sort button').forEach(b=>b.onclick=()=>{
 /* ================= EXPLORER ================= */
 const EX_COLS=[
   {k:'n',   t:'Player', l:true, get:p=>p.n},
-  {k:'pos', t:'Pos',    get:p=>p.pos},
-  {k:'c',   t:'£',      get:p=>p.c},
-  {k:'tp',  t:'Pts',    get:p=>p.tp},
-  {k:'form',t:'Form',   get:p=>p.form},
-  {k:'ppg', t:'PPG',    get:p=>p.ppg},
-  {k:'proj',t:'Proj',   get:p=>p._proj},
-  {k:'val', t:'Val',    get:p=>p._val},
-  {k:'xgi', t:'xGI',    get:p=>p.xgi},
-  {k:'ict', t:'ICT',    get:p=>p.ict},
-  {k:'sel', t:'Sel%',   get:p=>p.sel},
-  {k:'min', t:'Mins',   get:p=>p.min},
+  {k:'pos', t:'Pos',    gl:'pos',  get:p=>p.pos},
+  {k:'c',   t:'£',      gl:'price',get:p=>p.c},
+  {k:'tp',  t:'Pts',    gl:'pts',  get:p=>p.tp},
+  {k:'form',t:'Form',   gl:'form', get:p=>p.form},
+  {k:'ppg', t:'PPG',    gl:'ppg',  get:p=>p.ppg},
+  {k:'proj',t:'Proj',   gl:'proj', get:p=>p._proj},
+  {k:'val', t:'Val',    gl:'val',  get:p=>p._val},
+  {k:'xgi', t:'xGI',    gl:'xgi',  get:p=>p.xgi},
+  {k:'ict', t:'ICT',    gl:'ict',  get:p=>p.ict},
+  {k:'sel', t:'Sel%',   gl:'sel',  get:p=>p.sel},
+  {k:'min', t:'Mins',   gl:'min',  get:p=>p.min},
 ];
 let exSort='proj', exDir=-1, exHorizon=4;
 function renderExplorer(){
@@ -615,7 +574,7 @@ function renderExplorer(){
   });
   const thead=$('#ex-table thead'), tbody=$('#ex-table tbody');
   thead.innerHTML='<tr>'+EX_COLS.map(c=>
-    `<th class="sortable ${c.l?'l':''}" data-k="${c.k}" ${c.k===exSort?'data-active':''}>${c.t}<span class="ar">${c.k===exSort?(exDir<0?'▼':'▲'):''}</span></th>`
+    `<th class="sortable ${c.l?'l':''}" data-k="${c.k}" ${c.k===exSort?'data-active':''}>${c.t}${c.gl?glMark(c.gl):''}<span class="ar">${c.k===exSort?(exDir<0?'▼':'▲'):''}</span></th>`
   ).join('')+'</tr>';
   const show=list.slice(0,300);
   tbody.innerHTML=show.map(p=>{
@@ -638,6 +597,7 @@ function renderExplorer(){
   $('#ex-count').textContent=`${list.length} players`+(list.length>300?' (top 300 shown)':'');
 }
 $('#ex-table thead').addEventListener('click',e=>{
+  if(e.target.closest('.glh')) return;   // info marker, not a sort
   const th=e.target.closest('th'); if(!th) return;
   const k=th.dataset.k;
   if(k===exSort) exDir*=-1; else {exSort=k; exDir=(k==='n'||k==='pos')?1:-1;}
@@ -654,13 +614,13 @@ document.addEventListener('click',e=>{if(!e.target.closest('#ex-proj-i')&&!e.tar
 /* ================= COMPARE ================= */
 let cmpIds=[], cmpHorizon=6;
 const CMP_METRICS=[
-  {k:'tp',t:'Total points',get:p=>p.tp,fmt:v=>v},
-  {k:'form',t:'Form',get:p=>p.form,fmt:v=>v.toFixed(1)},
-  {k:'proj',t:`Proj (next ${'{H}'})`,get:p=>projection(p,cmpHorizon).total,fmt:v=>v.toFixed(1)},
-  {k:'val',t:'Value (pts/£m)',get:p=>p.c?p.tp/p.c:0,fmt:v=>v.toFixed(1)},
-  {k:'xgi',t:'xGI',get:p=>p.xgi,fmt:v=>v.toFixed(2)},
-  {k:'ict',t:'ICT index',get:p=>p.ict,fmt:v=>v.toFixed(1)},
-  {k:'sel',t:'Selected %',get:p=>p.sel,fmt:v=>v.toFixed(1)+'%'},
+  {k:'tp',t:'Total points',gl:'pts',get:p=>p.tp,fmt:v=>v},
+  {k:'form',t:'Form',gl:'form',get:p=>p.form,fmt:v=>v.toFixed(1)},
+  {k:'proj',t:`Proj (next ${'{H}'})`,gl:'proj',get:p=>projection(p,cmpHorizon).total,fmt:v=>v.toFixed(1)},
+  {k:'val',t:'Value (pts/£m)',gl:'val',get:p=>p.c?p.tp/p.c:0,fmt:v=>v.toFixed(1)},
+  {k:'xgi',t:'xGI',gl:'xgi',get:p=>p.xgi,fmt:v=>v.toFixed(2)},
+  {k:'ict',t:'ICT index',gl:'ict',get:p=>p.ict,fmt:v=>v.toFixed(1)},
+  {k:'sel',t:'Selected %',gl:'sel',get:p=>p.sel,fmt:v=>v.toFixed(1)+'%'},
 ];
 function renderCompare(){
   const grid=$('#cmp-grid'), empty=$('#cmp-empty');
@@ -680,7 +640,7 @@ function renderCompare(){
     const metrics=CMP_METRICS.map(m=>{
       const v=m.get(p), pct=clamp(v/maxes[m.k]*100,0,100);
       const label=m.t.replace('{H}',cmpHorizon);
-      return `<div class="metric"><div class="top"><span>${label}</span><b>${m.fmt(v)}</b></div>
+      return `<div class="metric"><div class="top"><span class="${m.gl?'glspan':''}" ${m.gl?`data-gl="${m.gl}"`:''}>${label}</span><b>${m.fmt(v)}</b></div>
         <div class="bar"><span style="width:${pct}%"></span></div></div>`;
     }).join('');
     return `<div class="cmpcard">
@@ -875,7 +835,7 @@ function renderTeam(entry,picks){
 
     <div class="h2">Your squad · proj over next ${tmHorizon} GWs</div>
     <div class="tablewrap"><table>
-      <thead><tr><th class="l">Player</th><th>Pos</th><th>£</th><th class="l">Next ${tmHorizon}</th><th>Proj</th><th>GW${DB.gw_next}</th></tr></thead>
+      <thead><tr><th class="l">Player</th><th>Pos${glMark('pos')}</th><th>£${glMark('price')}</th><th class="l">Next ${tmHorizon}${glMark('fdr')}</th><th>Proj${glMark('proj')}</th><th>GW${DB.gw_next}${glMark('cap')}</th></tr></thead>
       <tbody>
         <tr class="starter-sep"><td colspan="6">STARTING XI · captain scores double</td></tr>
         ${rowsHTML(starters)}
@@ -886,6 +846,47 @@ function renderTeam(entry,picks){
     <p class="note">Proj = points over the next ${tmHorizon} gameweeks (fixture- and availability-adjusted). GW${DB.gw_next} = next single gameweek, used for the captain call. Transfer budget assumes selling price = current price.</p>
   `;
 }
+
+/* ================= STAT TOOLTIPS ================= */
+const GLOSSARY={
+  pos:{t:'Position',d:'GKP goalkeeper, DEF defender, MID midfielder, FWD forward. A legal XI is 1 GKP, 3–5 DEF, 2–5 MID, 1–3 FWD.'},
+  price:{t:'Price (£m)',d:'Current price in millions. Drifts up and down with how many managers are buying or selling the player.'},
+  pts:{t:'Total points',d:'FPL points scored so far this season.'},
+  form:{t:'Form',d:'Average points per match over roughly the last 30 days — the recent hot-or-cold read.'},
+  ppg:{t:'Points per game (PPG)',d:'Season-long average per match. Steadier than form, less reactive.'},
+  proj:{t:'Projected points',d:'Gaffer’s estimate over your chosen horizon: a form/PPG blend adjusted for fixture difficulty, home/away and availability. A ranking aid, not gospel.'},
+  val:{t:'Value',d:'Total points per £1m of price. Higher = more return per pound — how you spot cheap enablers and avoid dead money.'},
+  xg:{t:'Expected goals (xG)',d:'Quality of the chances a player got, in goals. 0.5 xG ≈ one decent chance. Goals lagging xG often means returns are coming.'},
+  xa:{t:'Expected assists (xA)',d:'Same idea for passes that create shots — how threatening their chance-creation has been.'},
+  xgi:{t:'Expected goal involvements (xGI)',d:'xG + xA. One number for total attacking threat — the first thing to sort attackers by.'},
+  xgc:{t:'Expected goals conceded (xGC)',d:'Chances a player’s team allows while they’re on the pitch. Lower = better clean-sheet odds. The key defensive-asset metric.'},
+  ict:{t:'ICT index',d:'Influence, Creativity, Threat combined — FPL’s catch-all for how involved a player is.'},
+  sel:{t:'Selected by (%)',d:'Share of managers who own the player. High = template/safe; low = differential/rank-gainer.'},
+  min:{t:'Minutes',d:'Minutes played this season. The fastest check on who genuinely starts.'},
+  dc:{t:'Defensive contributions (DC)',d:'Tackles, blocks, interceptions and recoveries — now a scoring category, which is why cheap defensive mids matter.'},
+  fdr:{t:'Fixture difficulty (FDR)',d:'The Premier League’s 1–5 rating per match: 1 easiest (green), 5 hardest (red). UPPERCASE opponent = home game, lowercase = away.'},
+  gw:{t:'Gameweek',d:'One round of Premier League fixtures.'},
+  cap:{t:'Next-GW projection',d:'Projected points for the next single gameweek — what the captain call is based on (the captain scores double).'},
+};
+function glMark(k){ if(!GLOSSARY[k]) return ''; return `<span class="glh" data-gl="${k}" role="button" tabindex="0" aria-label="What is ${GLOSSARY[k].t}?">i</span>`; }
+const gltip=document.createElement('div'); gltip.id='gltip'; document.body.appendChild(gltip);
+let glCur=null;
+function glShow(el){
+  const g=GLOSSARY[el.getAttribute('data-gl')]; if(!g) return;
+  gltip.innerHTML=`<b>${g.t}</b>${g.d}`; gltip.classList.add('show');
+  const r=el.getBoundingClientRect(), tw=gltip.offsetWidth, th=gltip.offsetHeight;
+  let x=r.left+r.width/2-tw/2; x=Math.max(8,Math.min(x,innerWidth-tw-8));
+  let y=r.bottom+8; if(y+th>innerHeight-8) y=r.top-th-8;
+  gltip.style.left=x+'px'; gltip.style.top=y+'px'; glCur=el;
+}
+function glHide(){ gltip.classList.remove('show'); glCur=null; }
+document.addEventListener('mouseover',e=>{const el=e.target.closest('[data-gl]'); if(el) glShow(el);});
+document.addEventListener('mouseout',e=>{const el=e.target.closest('[data-gl]'); if(el&&!el.contains(e.relatedTarget)) glHide();});
+document.addEventListener('click',e=>{const el=e.target.closest('[data-gl]'); if(el){e.stopPropagation(); glCur===el?glHide():glShow(el);} else glHide();});
+document.addEventListener('focusin',e=>{const el=e.target.closest('[data-gl]'); if(el) glShow(el);});
+document.addEventListener('focusout',glHide);
+document.addEventListener('keydown',e=>{if(e.key==='Escape')glHide();});
+window.addEventListener('scroll',glHide,true);
 
 /* ---------------- init / rebuild ---------------- */
 function fillTeamSelect(){
