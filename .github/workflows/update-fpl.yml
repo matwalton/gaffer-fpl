@@ -1,1 +1,68 @@
 
+name: Update FPL data
+
+# Runs on GitHub's servers (not IP-blocked by FPL), fetches the latest data,
+# and commits data/fpl.json — which the site reads for live prices, form and fixtures.
+
+on:
+  schedule:
+    - cron: '30 6 * * *'        # daily 06:30 UTC, after FPL's overnight price changes
+  workflow_dispatch:            # lets you run it on demand from the Actions tab
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch and slim FPL data
+        run: |
+          python3 - <<'PY'
+          import json, urllib.request, datetime, os
+          def get(u):
+              req = urllib.request.Request(u, headers={'User-Agent': 'Mozilla/5.0'})
+              return json.load(urllib.request.urlopen(req, timeout=60))
+          boot = get('https://fantasy.premierleague.com/api/bootstrap-static/')
+          fixtures = get('https://fantasy.premierleague.com/api/fixtures/')
+          teams = {t['id']: {'n': t['short_name'], 'name': t['name'],
+                   'sah': t['strength_attack_home'], 'saa': t['strength_attack_away'],
+                   'sdh': t['strength_defence_home'], 'sda': t['strength_defence_away']} for t in boot['teams']}
+          et = {e['id']: e['singular_name_short'] for e in boot['element_types']}
+          cur = next((e['id'] for e in boot['events'] if e['is_current']), None)
+          nxt = next((e['id'] for e in boot['events'] if e['is_next']), (cur + 1 if cur else 1))
+          teamfix = {tid: [] for tid in teams}
+          for f in fixtures:
+              ev = f.get('event')
+              if not ev or ev < nxt: continue
+              th, ta = f['team_h'], f['team_a']
+              teamfix[th].append({'gw': ev, 'opp': teams[ta]['n'], 'oid': ta, 'home': 1, 'diff': f['team_h_difficulty']})
+              teamfix[ta].append({'gw': ev, 'opp': teams[th]['n'], 'oid': th, 'home': 0, 'diff': f['team_a_difficulty']})
+          for tid in teamfix: teamfix[tid].sort(key=lambda x: x['gw'])
+          num = lambda x: (round(float(x), 2) if x not in (None, '') else 0.0)
+          players = [{
+              'id': e['id'], 'n': e['web_name'], 't': e['team'], 'pos': et[e['element_type']],
+              'c': e['now_cost'] / 10, 'tp': e['total_points'], 'form': num(e['form']),
+              'ppg': num(e['points_per_game']), 'epn': num(e['ep_next']), 'min': e['minutes'],
+              'sel': num(e['selected_by_percent']), 'xg': num(e['expected_goals']), 'xa': num(e['expected_assists']),
+              'xgi': num(e['expected_goal_involvements']), 'xgc': num(e['expected_goals_conceded']),
+              'ict': num(e['ict_index']), 'g': e['goals_scored'], 'a': e['assists'], 'cs': e['clean_sheets'],
+              'bp': e['bonus'], 'dc': e.get('defensive_contribution', 0), 'st': e['status'],
+              'cop': e['chance_of_playing_next_round'], 'news': (e['news'] or '')[:140], 'starts': e.get('starts', 0)
+          } for e in boot['elements'] if e['team'] in teams]
+          data = {'gw_cur': cur, 'gw_next': nxt, 'asof': datetime.date.today().isoformat(),
+                  'teams': teams, 'teamfix': teamfix, 'players': players}
+          os.makedirs('data', exist_ok=True)
+          json.dump(data, open('data/fpl.json', 'w'), separators=(',', ':'), ensure_ascii=False)
+          print('wrote data/fpl.json:', len(players), 'players, GW', cur, '->', nxt)
+          PY
+
+      - name: Commit if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/fpl.json
+          git commit -m "Update FPL data $(date -u +%F)" || { echo "No changes"; exit 0; }
+          git push
