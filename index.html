@@ -183,6 +183,28 @@ td.fixcell{padding:4px 5px}
 .opts::before{content:"Options:";color:var(--mut);font-size:11px;font-weight:800;letter-spacing:.02em;margin-right:2px}
 .opt{border:1px solid var(--line2);background:var(--card2);border-radius:8px;padding:3px 9px;font-size:12.5px;color:var(--ink)}
 .opt b{color:var(--purple)}
+.chipsel{display:flex;gap:4px;flex-wrap:wrap}
+.chipsel label{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:700;color:var(--on-mut);
+  border:1px solid var(--purple-line);border-radius:8px;padding:5px 8px;cursor:pointer;background:rgba(255,255,255,.05)}
+.chipsel input{accent-color:var(--green);margin:0}
+.plan-chip{display:flex;align-items:flex-start;gap:10px;border-radius:12px;padding:13px 15px;margin:6px 0 12px;
+  font-size:15px;line-height:1.45;border:1px solid var(--line);background:var(--card);color:var(--ink);box-shadow:0 8px 24px rgba(20,0,24,.24)}
+.plan-chip b{color:var(--purple)}
+.plan-chip .pill{flex:none;font-size:11px;font-weight:800;letter-spacing:.03em;padding:3px 9px;border-radius:999px;margin-top:1px}
+.plan-chip.play{border-left:5px solid var(--green)}
+.plan-chip.play .pill{background:var(--green);color:var(--purple)}
+.plan-chip.hold{border-left:5px solid var(--line2)}
+.plan-chip.hold .pill{background:var(--card2);color:var(--mut);border:1px solid var(--line2)}
+ol.plan{margin:0 0 6px;padding-left:0;list-style:none;counter-reset:step;display:flex;flex-direction:column;gap:8px}
+ol.plan li{position:relative;padding:11px 14px 11px 44px;border:1px solid var(--line);border-radius:10px;background:var(--card);
+  color:var(--ink);font-size:14px;line-height:1.45;box-shadow:0 6px 18px rgba(20,0,24,.16)}
+ol.plan li b{color:var(--purple)}
+ol.plan li::before{counter-increment:step;content:counter(step);position:absolute;left:11px;top:10px;width:22px;height:22px;
+  border-radius:50%;background:var(--purple);color:#fff;font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center}
+.aibtn{margin:2px 0 10px}
+.aibrief{border:1px solid var(--magenta);border-left:5px solid var(--magenta);background:var(--card);color:var(--ink);
+  border-radius:12px;padding:14px 16px;margin:8px 0 14px;font-size:14.5px;line-height:1.55;white-space:pre-wrap;box-shadow:0 8px 24px rgba(20,0,24,.24)}
+.aibrief .who{display:block;font-family:"Archivo Expanded",sans-serif;font-weight:700;color:var(--purple);margin-bottom:6px;font-size:13px;letter-spacing:.02em}
 .ometa{color:var(--mut2);font-size:11.5px}
 .otag{margin-left:5px;font-size:9.5px;font-weight:800;color:#fff;background:var(--magenta);border-radius:4px;padding:1px 5px;vertical-align:middle}
 .rec{display:flex;align-items:center;gap:10px;flex-wrap:wrap;border:1px solid var(--line);background:var(--card);color:var(--ink);
@@ -360,6 +382,15 @@ footer{color:var(--on-mut2);font-size:12px;margin-top:26px;line-height:1.6;borde
         <div class="field">
           <label for="tm-bank">Bank £m</label>
           <input type="text" id="tm-bank" inputmode="decimal" value="0.0" style="width:84px">
+        </div>
+        <div class="field">
+          <label>Chips available</label>
+          <div class="chipsel" id="tm-chips">
+            <label><input type="checkbox" value="wc" checked>WC</label>
+            <label><input type="checkbox" value="fh" checked>FH</label>
+            <label><input type="checkbox" value="bb" checked>BB</label>
+            <label><input type="checkbox" value="tc" checked>TC</label>
+          </div>
         </div>
       </div>
 
@@ -783,6 +814,87 @@ $('#ms-go').onclick=()=>{
 };
 renderMsPicks();
 
+function getChips(){return [...document.querySelectorAll('#tm-chips input:checked')].map(i=>i.value);}
+let lastPlanPrompt='';
+
+function gwPlanHTML(squad,bank,ft,best,capBest,ideas){
+  const gw=DB.gw_next, chips=getChips();
+  const xiSet=best?best.ids:new Set();
+  const xi=squad.filter(p=>xiSet.has(p.id));
+  const bench=squad.filter(p=>!xiSet.has(p.id));
+  const fixOf=p=>(DB.teamfix[p.t]||[]).filter(f=>f.gw===gw);
+  const blanks=squad.filter(p=>fixOf(p).length===0);
+  const mustFix=squad.filter(p=>availMult(p)<0.5);
+  const inj=ideas.inj, up=ideas.up;
+  const benchOut=bench.filter(p=>p.pos!=='GKP');
+  const benchProj=benchOut.reduce((s,p)=>s+p._p1,0);
+  const benchAllPlay=bench.every(p=>availMult(p)>0.75 && fixOf(p).length>=1);
+  const has=c=>chips.includes(c), bigUp=up.filter(u=>u.gain>3).length;
+
+  let chip=null;
+  if(!chip&&has('fh')&&blanks.length>=4) chip={name:'Free Hit',why:`${blanks.length} of your squad blank in GW${gw} — you can't field a full XI, which is exactly what Free Hit is for.`};
+  if(!chip&&has('wc')&&(mustFix.length>=3||(mustFix.length>=2&&bigUp>=2)||(mustFix.length>=1&&bigUp>=3))) chip={name:'Wildcard',why:`${mustFix.length} unavailable and ${bigUp} clear upgrades on the board — more than a hit or two can fix, so a Wildcard resets the squad in one move.`};
+  if(!chip&&has('bb')&&blanks.length===0&&benchAllPlay&&benchProj>=11) chip={name:'Bench Boost',why:`All 15 have fixtures and your bench (${benchOut.map(p=>p.n).join(', ')}) all start, projecting ${benchProj.toFixed(1)} next GW — a live Bench Boost.`};
+  const capF=capBest?fixOf(capBest):[], capDGW=capF.length>=2;
+  if(!chip&&has('tc')&&capBest&&(capDGW||(capBest.c>=10&&capF[0]&&capF[0].diff<=2&&capF[0].home))) chip={name:'Triple Captain',why:capDGW?`${capBest.n} has a double gameweek — the textbook Triple Captain spot.`:`${capBest.n} is home to a soft fixture (FDR ${capF[0].diff}) — defensible, though many hold TC for a double.`};
+
+  const anyChip=has('wc')||has('fh')||has('bb')||has('tc');
+  const chipHTML=chip
+    ? `<div class="plan-chip play"><span class="pill">PLAY</span><div><b>${chip.name}</b> — ${chip.why}</div></div>`
+    : `<div class="plan-chip hold"><span class="pill">HOLD</span><div><b>No chip this week.</b> ${anyChip?'Nothing forces your hand — bank them for a blank/double gameweek or a big fixture swing.':'No chips left to play.'}</div></div>`;
+
+  const recPick=[...inj, ...up.filter(u=>!inj.some(i=>i.out.id===u.out.id))];
+  const steps=[];
+  if(chip&&chip.name==='Free Hit') steps.push(`Activate <b>Free Hit</b> and build a one-week XI of players with fixtures — it reverts next GW, so chase points, not value.`);
+  else if(chip&&chip.name==='Wildcard') steps.push(`Play <b>Wildcard</b> — don't burn single transfers. Rebuild the XV: fix the flagged players, then close the blueprint gaps below.`);
+  else if(mustFix.length){
+    inj.slice(0,Math.max(1,ft)).forEach(r=>steps.push(`Replace <b>${r.out.n}</b> (unavailable) → <b>${r.inp.n}</b> <span class="dim">(+${r.gain} / ${tmHorizon}GW)</span>.`));
+    if(mustFix.length>ft) steps.push(`You have ${mustFix.length} unavailable but only ${ft} free transfer${ft>1?'s':''} — weigh a Wildcard against stacking −4 hits.`);
+  } else if(recPick.length&&recPick[0].gain>0.5){
+    recPick.slice(0,Math.max(1,ft)).forEach(r=>steps.push(`<b>${r.out.n}</b> → <b>${r.inp.n}</b> <span class="dim">(+${r.gain} / ${tmHorizon}GW)</span>.`));
+    const hit=recPick[ft];
+    if(hit&&hit.gain>4) steps.push(`A second move <b>${hit.out.n}</b> → <b>${hit.inp.n}</b> gains +${hit.gain} — clears the −4, so a hit pays.`);
+  } else steps.push(`<b>Roll your transfer${ft>1?'s':''}.</b> Nothing on the board beats holding — bank it toward a double move.`);
+
+  const vice=xi.filter(p=>p.id!==(capBest&&capBest.id)).sort((a,b)=>b._p1-a._p1)[0];
+  const diffCap=xi.filter(p=>p.sel<=15&&p.id!==(capBest&&capBest.id)).sort((a,b)=>b._p1-a._p1)[0];
+  const capFx=capF[0];
+  steps.push(`Captain <b>${capBest?capBest.n:'—'}</b> <span class="dim">(${capBest?capBest._p1:0} proj${capFx?`, ${capFx.home?'vs':'@'} ${capFx.opp} FDR ${capFx.diff}`:''})</span>, vice <b>${vice?vice.n:'—'}</b>.${diffCap&&capBest&&diffCap.id!==capBest.id&&diffCap._p1>=capBest._p1-1.5?` Chasing rank? <b>${diffCap.n}</b> (${diffCap.sel}%) is the differential armband.`:''}`);
+  const benchOrder=benchOut.slice().sort((a,b)=>b._p1-a._p1), gk=bench.find(p=>p.pos==='GKP');
+  steps.push(`Line up <b>${best?best.formation:'—'}</b>. Bench: ${benchOrder.map((p,i)=>`${i+1}. ${p.n}`).join(' · ')}${gk?` · GK ${gk.n}`:''}.`);
+
+  // build AI prompt from the same facts
+  const sq=squad.map(p=>`${p.n}(${p.pos},${teamName(p.t)},£${p.c},proj${p._p},own${p.sel}%${p.st!=='a'?',FLAGGED':''}${p.pen?',pen':''})`).join('; ');
+  lastPlanPrompt=`You are an elite Fantasy Premier League analyst writing a sharp, decisive Gameweek ${gw} briefing for a manager. Be direct and concrete in plain, spoken-word English — no hedging, no filler, no bullet-point scaffolding. Use their real players and numbers. Give a clear recommendation for each call with one line of reasoning: (1) chip decision, (2) transfer(s) or roll, (3) captain + vice, (4) the single biggest risk to watch. Under 180 words.\n\nFACTS\nGameweek: ${gw}. Bank: £${bank.toFixed(1)}m. Free transfers: ${ft}. Chips available: ${chips.join(', ')||'none'}.\nEngine chip verdict: ${chip?chip.name+' — '+chip.why:'hold all chips'}.\nEngine transfer picks: ${recPick.slice(0,3).map(r=>`${r.out.n}->${r.inp.n}(+${r.gain})`).join('; ')||'none worth it, roll'}.\nEngine captain: ${capBest?capBest.n:'—'}, vice ${vice?vice.n:'—'}.\nSquad(15): ${sq}.`;
+
+  return `
+    <div class="h2">Gameweek ${gw} plan <span class="dim" style="font-size:12px;font-family:'Archivo',sans-serif;font-weight:400">— your move this week</span></div>
+    ${chipHTML}
+    <ol class="plan">${steps.map(s=>`<li>${s}</li>`).join('')}</ol>
+    <div class="aibtn"><button class="btn" id="ai-go">✨ AI manager's briefing</button></div>
+    <div id="ai-out"></div>`;
+}
+
+async function requestAI(btn){
+  const out=$('#ai-out'), prompt=lastPlanPrompt;
+  if(!prompt){return;}
+  btn.disabled=true; const old=btn.textContent; btn.textContent='Thinking…';
+  try{
+    const r=await fetch('/api/ai',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({prompt})});
+    const d=await r.json().catch(()=>({}));
+    if(r.ok&&d.text){
+      out.innerHTML=`<div class="aibrief"><span class="who">Claude · manager's briefing</span>${d.text.replace(/[<>]/g,c=>c==='<'?'&lt;':'&gt;')}</div>`;
+    } else if(d&&d.error==='no-key'){
+      out.innerHTML=`<div class="note">AI briefing needs an Anthropic key. Add <code>api/ai.js</code> (provided), set <code>ANTHROPIC_API_KEY</code> in Vercel → Settings → Environment Variables, and redeploy. The structured plan above already stands on its own.</div>`;
+    } else {
+      out.innerHTML=`<div class="note">AI briefing runs on your hosted site (with <code>api/ai.js</code> + an Anthropic key) — the published Claude preview can't reach it. The plan above works everywhere.</div>`;
+    }
+  }catch(e){
+    out.innerHTML=`<div class="note">AI briefing runs on your hosted Vercel site with <code>api/ai.js</code> + an Anthropic key. The structured plan above needs none of that.</div>`;
+  } finally { btn.disabled=false; btn.textContent=old; }
+}
+document.addEventListener('click',e=>{const b=e.target.closest('#ai-go'); if(b){e.preventDefault(); requestAI(b);}});
+
 function fmtK(n){return n>=1000?((n/1000).toFixed(n>=100000?0:1)+'k'):String(n);}
 /* richer insights: how top teams are built + live market signals (refresh weekly with the data) */
 function squadInsights(squad, xiSet){
@@ -793,7 +905,7 @@ function squadInsights(squad, xiSet){
   const template=squad.filter(p=>p.sel>=25);
   const diffXI=xi.filter(p=>p.sel<=8);
   const club={}; squad.forEach(p=>club[p.t]=(club[p.t]||0)+1);
-  let maxClub=0,maxName=''; Object.entries(club).forEach(([t,n])=>{if(n>maxClub){maxClub=n;maxName=teamName(+t);}});
+  let maxClub=0,maxName='',maxId=null; Object.entries(club).forEach(([t,n])=>{if(n>maxClub){maxClub=n;maxId=+t;maxName=teamName(+t);}});
   const setp=xi.filter(p=>p.pen||p.sp);
   const benchVal=bench.reduce((s,p)=>s+p.c,0);
 
@@ -805,17 +917,18 @@ function squadInsights(squad, xiSet){
       const tag=sp?(p.pen?'<span class="otag">PEN</span>':(p.sp?'<span class="otag">SP</span>':'')):'';
       return `<span class="opt"><b>${p.n}</b> <span class="ometa">${teamName(p.t)} · £${p.c.toFixed(1)} · ${projH(p).toFixed(1)}proj · ${p.sel}%</span>${tag}</span>`;
     }).join('')+`</div>`:'';
-  li(prem.length>=2, `<b>Premiums (£9.0m+):</b> ${prem.length}. Top squads carry 2–3 for guaranteed ceiling${prem.length<2?" — you're light on it.":'.'}`,
+  const nm=(list,k)=>{const a=list.map(p=>p.n);k=k||6;return a.length?a.slice(0,k).join(', ')+(a.length>k?` +${a.length-k}`:''):'';};
+  li(prem.length>=2, `<b>Premiums (£9.0m+):</b> ${prem.length}${prem.length?' — '+nm(prem):''}. Top squads carry 2–3 for guaranteed ceiling${prem.length<2?" — you're light on it.":'.'}`,
      prem.length<2?chips(top(p=>p.c>=9.0)):'');
-  li(template.length>=4&&template.length<=9, `<b>Template spine:</b> ${template.length} owned by 25%+ of the game. The top-10k baseline is a 4–6 template core${template.length<4?" — you're well off-template, so expect big rank swings.":(template.length>9?' — almost no room to differentiate.':', with room to differ.')}`,
+  li(template.length>=4&&template.length<=9, `<b>Template spine:</b> ${template.length} at 25%+ owned${template.length?' — '+nm(template):''}. The top-10k baseline is a 4–6 core${template.length<4?", so you're off-template (expect big swings).":(template.length>9?', with almost no room to differentiate.':', with room to differ.')}`,
      template.length<4?chips(top(p=>p.sel>=25)):'');
-  li(diffXI.length>=1&&diffXI.length<=3, `<b>Differentials:</b> ${diffXI.length} sub-8%-owned in your XI. 1–3 researched punts is how you climb${diffXI.length===0?" — a pure-template XI can only tread water.":(diffXI.length>3?" — high-variance amount.":'.')}`,
+  li(diffXI.length>=1&&diffXI.length<=3, `<b>Differentials:</b> ${diffXI.length} sub-8%-owned starter${diffXI.length===1?'':'s'}${diffXI.length?' — '+nm(diffXI):''}. 1–3 researched punts is how you climb${diffXI.length===0?"; a pure-template XI can only tread water.":(diffXI.length>3?" — that's high-variance.":'.')}`,
      diffXI.length<1?chips(top(p=>p.sel<=8&&p.min>=180)):'');
-  li(setp.length>=3, `<b>Set-piece & penalty threat:</b> ${setp.length} of your XI take pens or set-pieces — the cheapest points multiplier going${setp.length<3?', worth topping up.':'.'}`,
+  li(setp.length>=3, `<b>Set-piece & penalties:</b> ${setp.length} in your XI${setp.length?' — '+nm(setp):''}. The cheapest points multiplier going${setp.length<3?', worth topping up.':'.'}`,
      setp.length<3?chips(top(p=>p.pen||p.sp),true):'');
-  li(benchVal<=18, `<b>Bench spend:</b> £${benchVal.toFixed(1)}m on the bench. Keep it lean${benchVal>18?" — that's expensive value doing nothing.":'.'}`,
+  li(benchVal<=18, `<b>Bench spend:</b> £${benchVal.toFixed(1)}m${bench.length?' — '+nm(bench):''}. Keep it lean${benchVal>18?"; that's expensive value doing nothing.":'.'}`,
      benchVal>18?chips(top(p=>p.c<=4.5&&p.min>=180)):'');
-  li(maxClub<=2, `<b>Club spread:</b> ${maxClub} from ${maxName}${maxClub>=3?' (the max) — concentration risk if they blank.':'.'}`);
+  li(maxClub<=2, `<b>Club spread:</b> ${maxClub} from ${maxName}${maxClub>=3?' ('+nm(squad.filter(p=>p.t===maxId),3)+') — concentration risk if they blank.':'.'}`);
 
   const S=[];
   const risers=squad.filter(p=>p.pc>0).map(p=>p.n);
@@ -890,6 +1003,7 @@ function renderManual(squad,bank,ft){
     ? `<p class="note">Each move beyond your ${ft} free transfer${ft>1?'s':''} costs −4. Over ${tmHorizon} GWs a move only pays off if its gain clears 4 — the top one ${up[0].gain>4?'does':'is marginal, so weigh it against a hit'}.</p>` : '';
 
   out.innerHTML=`
+    ${gwPlanHTML(squad,bank,ft,best,capBest,{inj,up})}
     <div class="tm-sum">
       <span class="chip">Squad value <b>£${tv.toFixed(1)}m</b></span>
       <span class="chip">Bank <b>£${bank.toFixed(1)}m</b></span>
@@ -1069,6 +1183,7 @@ function renderTeam(entry,picks){
     ? `<p class="note">Each move beyond your ${ft} free transfer${ft>1?'s':''} costs −4. Over ${tmHorizon} GWs a move only pays off if its gain clears 4 — the top one ${up[0].gain>4?'does':'is marginal, so weigh it against taking a hit'}.</p>` : '';
 
   out.innerHTML=`
+    ${gwPlanHTML(squad,bank,ft,best,capBest,{inj,up})}
     <div class="tm-sum">
       <span class="chip">${mgr}</span>
       <span class="chip">GW analysed <b>${entry.current_event||DB.gw_cur}</b></span>
