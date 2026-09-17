@@ -179,6 +179,12 @@ td.fixcell{padding:4px 5px}
 .verdict li.warn{border-left-color:#f2a900}
 .verdict li.bad{border-left-color:var(--magenta)}
 .verdict li b{color:var(--purple)}
+.opts{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px;align-items:center}
+.opts::before{content:"Options:";color:var(--mut);font-size:11px;font-weight:800;letter-spacing:.02em;margin-right:2px}
+.opt{border:1px solid var(--line2);background:var(--card2);border-radius:8px;padding:3px 9px;font-size:12.5px;color:var(--ink)}
+.opt b{color:var(--purple)}
+.ometa{color:var(--mut2);font-size:11.5px}
+.otag{margin-left:5px;font-size:9.5px;font-weight:800;color:#fff;background:var(--magenta);border-radius:4px;padding:1px 5px;vertical-align:middle}
 .rec{display:flex;align-items:center;gap:10px;flex-wrap:wrap;border:1px solid var(--line);background:var(--card);color:var(--ink);
   border-radius:10px;padding:10px 13px;margin-bottom:8px;font-size:14px;box-shadow:0 6px 18px rgba(20,0,24,.18)}
 .rec .who{font-weight:700;color:var(--purple)}
@@ -791,12 +797,24 @@ function squadInsights(squad, xiSet){
   const setp=xi.filter(p=>p.pen||p.sp);
   const benchVal=bench.reduce((s,p)=>s+p.c,0);
 
-  const B=[]; const li=(ok,html)=>B.push(`<li class="${ok?'':'warn'}">${html}</li>`);
-  li(prem.length>=2, `<b>Premiums (£9.0m+):</b> ${prem.length}. Top squads carry 2–3 for guaranteed ceiling${prem.length<2?" — you're light on it.":'.'}`);
-  li(template.length>=4&&template.length<=9, `<b>Template spine:</b> ${template.length} owned by 25%+ of the game. The top-10k baseline is a 4–6 template core${template.length<4?" — you're well off-template, so expect big rank swings.":(template.length>9?' — almost no room to differentiate.':', with room to differ.')}`);
-  li(diffXI.length>=1&&diffXI.length<=3, `<b>Differentials:</b> ${diffXI.length} sub-8%-owned in your XI. 1–3 researched punts is how you climb${diffXI.length===0?" — a pure-template XI can only tread water.":(diffXI.length>3?" — high-variance amount.":'.')}`);
-  li(setp.length>=3, `<b>Set-piece & penalty threat:</b> ${setp.length} of your XI take pens or set-pieces — the cheapest points multiplier going${setp.length<3?', worth topping up.':'.'}`);
-  li(benchVal<=18, `<b>Bench spend:</b> £${benchVal.toFixed(1)}m on the bench. Keep it lean${benchVal>18?" — that's expensive value doing nothing.":'.'}`);
+  const B=[]; const li=(ok,html,opts)=>B.push(`<li class="${ok?'':'warn'}">${html}${opts||''}</li>`);
+  const owned=new Set(squad.map(p=>p.id));
+  const avail=p=>!owned.has(p.id)&&availMult(p)>0.5&&p.min>=90;
+  const top=(f,n)=>DB.players.filter(p=>avail(p)&&f(p)).sort((a,b)=>projH(b)-projH(a)).slice(0,n||3);
+  const chips=(list,sp)=>list.length?`<div class="opts">`+list.map(p=>{
+      const tag=sp?(p.pen?'<span class="otag">PEN</span>':(p.sp?'<span class="otag">SP</span>':'')):'';
+      return `<span class="opt"><b>${p.n}</b> <span class="ometa">${teamName(p.t)} · £${p.c.toFixed(1)} · ${projH(p).toFixed(1)}proj · ${p.sel}%</span>${tag}</span>`;
+    }).join('')+`</div>`:'';
+  li(prem.length>=2, `<b>Premiums (£9.0m+):</b> ${prem.length}. Top squads carry 2–3 for guaranteed ceiling${prem.length<2?" — you're light on it.":'.'}`,
+     prem.length<2?chips(top(p=>p.c>=9.0)):'');
+  li(template.length>=4&&template.length<=9, `<b>Template spine:</b> ${template.length} owned by 25%+ of the game. The top-10k baseline is a 4–6 template core${template.length<4?" — you're well off-template, so expect big rank swings.":(template.length>9?' — almost no room to differentiate.':', with room to differ.')}`,
+     template.length<4?chips(top(p=>p.sel>=25)):'');
+  li(diffXI.length>=1&&diffXI.length<=3, `<b>Differentials:</b> ${diffXI.length} sub-8%-owned in your XI. 1–3 researched punts is how you climb${diffXI.length===0?" — a pure-template XI can only tread water.":(diffXI.length>3?" — high-variance amount.":'.')}`,
+     diffXI.length<1?chips(top(p=>p.sel<=8&&p.min>=180)):'');
+  li(setp.length>=3, `<b>Set-piece & penalty threat:</b> ${setp.length} of your XI take pens or set-pieces — the cheapest points multiplier going${setp.length<3?', worth topping up.':'.'}`,
+     setp.length<3?chips(top(p=>p.pen||p.sp),true):'');
+  li(benchVal<=18, `<b>Bench spend:</b> £${benchVal.toFixed(1)}m on the bench. Keep it lean${benchVal>18?" — that's expensive value doing nothing.":'.'}`,
+     benchVal>18?chips(top(p=>p.c<=4.5&&p.min>=180)):'');
   li(maxClub<=2, `<b>Club spread:</b> ${maxClub} from ${maxName}${maxClub>=3?' (the max) — concentration risk if they blank.':'.'}`);
 
   const S=[];
